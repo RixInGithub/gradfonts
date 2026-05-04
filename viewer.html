@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>viewer thingmajij</title>
+		<style>
+			table {border-collapse: collapse;}
+			table#t > tr > td {border: 1px solid Black;padding: 8px;}
+			table#t > tr > td > div, table#t > tr > td > div > div {display:flex;flex-direction:column;gap:8px;align-items:center;font-weight:bold;}
+			table#t > tr > td > div > div {font-weight:normal;gap:4px;}
+			table#t > tr > td > div > div > button {appearance:none;border: 1px solid Black;padding: 2px;font:inherit;font-size:75%;cursor:pointer;background-color:Transparent;}
+			table#t > tr > td > div > div > small {font: normal 75% monospace;font-style:italic;}
+			table.inner td {width:4px;height:4px;border:0;font-size:0;}
+		</style>
+	</head>
+	<body>
+		<p>load: <input type="file" id="file"></p>
+		<table id="t"></table>
+		<script>
+			file.addEventListener("input", async function() {
+				var reader = new FileReader()
+				reader.addEventListener("load", function() {
+					document.querySelectorAll("table#t>*").forEach(function(el){el.remove()})
+					var map = {"20":" ","21":"!","22":"\"","23":"#","24":"$","25":"%","26":"&","27":"’","28":"(","29":")","30":"0","31":"1","32":"2","33":"3","34":"4","35":"5","36":"6","37":"7","38":"8","39":"9","40":"@","41":"A","42":"B","43":"C","44":"D","45":"E","46":"F","47":"G","48":"H","49":"I","50":"P","51":"Q","52":"R","53":"S","54":"T","55":"U","56":"V","57":"W","58":"X","59":"Y","60":"‘","61":"a","62":"b","63":"c","64":"d","65":"e","66":"f","67":"g","68":"h","69":"i","70":"p","71":"q","72":"r","73":"s","74":"t","75":"u","76":"v","77":"w","78":"x","79":"y","2A":"*","2B":"+","2C":",","2D":"-","2E":".","2F":"/","3A":":","3B":";","3C":"<","3D":"=","3E":">","3F":"?","4A":"J","4B":"K","4C":"L","4D":"M","4E":"N","4F":"O","5A":"Z","5B":"[","5C":"\\","5D":"]","5E":"^","5F":"_","6A":"j","6B":"k","6C":"l","6D":"m","6E":"n","6F":"o","7A":"z","7B":"{","7C":"|","7D":"}","7E":"~","A1":"¡","A2":"¢","A3":"£","A4":"⁄","A5":"¥","A6":"ƒ","A7":"§","A8":"¤","A9":"'","AA":"“","AB":"«","AC":"‹","AD":"›","AE":"ﬁ","AF":"ﬂ","B1":"–","B2":"†","B3":"‡","B4":"·","B6":"¶","B7":"•","B8":"‚","B9":"„","BA":"”","BB":"»","BC":"…","BD":"‰","BF":"¿","C1":"`","C2":"´","C3":"ˆ","C4":"˜","C5":"¯","C6":"˘","C7":"˙","C8":"¨","CA":"˚","CB":"¸","CD":"˝","CE":"˛","CF":"ˇ","D0":"—","E1":"Æ","E3":"ª","E8":"Ł","E9":"Ø","EA":"Œ","EB":"º","F1":"æ","F5":"ı","F8":"ł","F9":"ø","FA":"œ","FB":"ß"}
+					var bdf = reader.result.split("\n")
+					// top 5 softest parsers made by grad
+					var name = "unknown"
+					var expected = 0
+					var letts = []
+					var currLett = {}
+					var font = false
+					var lett = false
+					var bbx = [0,0]
+					var skip = 0;
+					for (var l of bdf) {
+						font = ((font)||(l=="STARTFONT 2.1"))
+						if (l=="ENDFONT") break
+						if (font) {
+							if (skip) {
+								skip--;
+								continue;
+							}
+							if (lett) {
+								if (l.startsWith("ENDCHAR")) {
+									lett = false
+									letts.push(currLett)
+									currLett = {}
+								}
+								if (currLett.bmpMode) {
+									var pushed = Array.from(currLett.xOff,function(){return(0)}).concat(parseInt(l,16).toString(2).padStart(l.length*4,0).split("").map(Number))
+									while (pushed.length<currLett.bbx[0]) pushed.push(0) // pad right too
+									currLett.bmp.push(pushed)
+									continue
+								}
+								if (l.startsWith("ENCODING")) currLett.v = parseInt(l.split(" ")[1])
+								if (l.startsWith("BBX")) {
+									var rawBbx = l.split(" ").slice(1).map(Number)
+									currLett.bbx = [rawBbx[0]+rawBbx[2],rawBbx[1]+rawBbx[3]]
+									currLett.xOff = rawBbx[2]
+								}
+								if (l=="BITMAP") {
+									currLett.bmpMode = true
+									currLett.bmp = Array.from(currLett.bbx[1],function(){return(Array).from(currLett.bbx[0],function(){return(0)})})
+								}
+								continue
+							}
+							if (l.startsWith("STARTPROPERTIES")) skip = parseInt(l.split(" ")[1])
+							if (l.startsWith("FONT")) name = l.split(" ")[1]
+							if (l.startsWith("CHARS")) expected = parseInt(l.split(" ")[1])
+							if (l.startsWith("STARTCHAR")) {
+								lett = true
+								currLett.name = l.split(" ")[1]||"unnamed?"
+							}
+						}
+					}
+					letts = letts.sort(function(a,b) {
+						return a.v-b.v
+					})
+					var rowLimit = 16
+					var count = 0
+					var tr
+					letts.forEach(function(lett) {
+						if (count%rowLimit==0) {
+							if (tr) t.appendChild(tr)
+							tr = document.createElement("tr")
+						}
+						var td = document.createElement("td")
+						var div = document.createElement("div")
+						var v = lett.v.toString(16).padStart(2,0).toUpperCase()
+						div.innerHTML += `<div><strong>${v} (${map[v]||"<i>?</i>"})</strong><small>${lett.name}</small><button>copy img</button></div>`
+						div.innerHTML += `<table class="inner">${lett.bmp.map(function(r){return"<tr>"+(r).map(function(val){return`<td${val?" style=\"background-color: Black;\"":""}></td>`}).join("")+"</tr>"}).join("")}</table>`
+						div.querySelector("button").addEventListener("click",function(){
+							navigator.clipboard.writeText(lett.bmp.map(function(r){return(r).map(function(v){return(v?"#":" ")}).join("")}).join("\n"))
+						})
+						td.appendChild(div)
+						tr.appendChild(td)
+						count++
+					})
+					if (tr) t.appendChild(tr)
+				})
+				reader.readAsText(file.files[0])
+			})
+		</script>
+	</body>
+</html>
