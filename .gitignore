@@ -1,4 +1,5 @@
 __pycache__/*
 __pycache__
 *.bdf
-*/*.bdf # build the results yo self
+*/*.bdf
+# build the results yo self
